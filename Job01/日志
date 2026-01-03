@@ -1,0 +1,3 @@
+1.重构XD产品预测代码，model_map作为外部传参进来；
+2.重构ZD产品预测代码，model_map作为外部传参进来；
+3.重构XD_XGBoost模型，外部传参如excel，列号等所有外部参数统一以argparse方式编排；
