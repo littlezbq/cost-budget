@@ -1,6 +1,6 @@
 import xgboost as xgb
 from pathlib import Path
-from ZD产品预测模型code.ZD_code.ZD_data_input import Input_parameternames, ModelInput
+from Job01.ZD产品预测模型code.ZD_code.ZD_data_input import Input_parameternames, ModelInput
 
 # model_map = {
 #     1: {

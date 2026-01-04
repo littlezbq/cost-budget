@@ -1,7 +1,7 @@
 # 依赖方法
 from fastapi import UploadFile
 
-from entites.data_model import EnterDataReq, EnterDataReq
+from entites.data_model import EnterDataReq_ZD
 
 
 def verify_file(file: UploadFile) -> UploadFile:
@@ -13,7 +13,7 @@ def verify_file(file: UploadFile) -> UploadFile:
     return file
 
 
-def verify_data(data: EnterDataReq) -> EnterDataReq:
+def verify_data(data: EnterDataReq_ZD) -> EnterDataReq_ZD:
     """
     输入数据字段校验
     :param data:
