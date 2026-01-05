@@ -15,10 +15,10 @@ column_names = ['JL', 'CD', 'WZSF', 'WZKG', 'LJBH', 'XCXW', 'JS', 'ZJ', 'CDB', '
 
 # 目标中英对照
 dict_col = {
-    '直接材料': 'material',
-    '直接人工+制造费用': 'manlab',
-    '总成本': 'total'
-    }
+    '总成本预测模型': 'total',
+    '直接材料成本预测模型': 'material',
+    '直接人工和制造费用成本预测模型': 'manlab'
+}
 
 def train_and_save_xd_model(file_path, k):
     """训练模型并保存结果

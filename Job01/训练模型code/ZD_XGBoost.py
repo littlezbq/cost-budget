@@ -13,9 +13,9 @@ column_names = ['DW','XHFK-到位反馈','XHFK-位置反馈','XHFS-LVDT','XHFS-�
 
 # 目标变量中英对照（可选）
 dict_col = {
-    '总成本': 'total',
-    '直接材料': 'material',
-    '直接人工+制造费用': 'manlab'
+    '总成本预测模型': 'total',
+    '直接材料成本预测模型': 'material',
+    '直接人工和制造费用成本预测模型': 'manlab'
 }
 
 dict_tong = {
@@ -29,7 +29,7 @@ def train_and_save_zd_model(file_path, k, zd_type):
     Args:
         file_path (str): Excel文件路径
         k (str): 目标变量（如'总成本'）
-        zd_type (str): ZD类型（如'单筒'/'双筒'）
+
     """
     # 创建输出目录
     # input_dir = os.path.dirname(os.path.abspath(file_path))
@@ -99,6 +99,17 @@ def train_and_save_zd_model(file_path, k, zd_type):
     print(f"模型已保存: {model_path}")
     print(f"R2: {r2:.4f}, MAPE: {mape:.6f}, RMSE: {rmse:.6f}")
 
+    # 新增返回值
+    return {
+        "model_path": model_path,
+        "r2": round(r2, 4),
+        "mape": round(mape, 6),
+        "rmse": round(rmse, 6),
+        "target_var": k,
+        "zd_type": zd_type,
+        "timestamp": timestamp
+    }
+
 def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, zd_type, timestamp):
     """保存预测结果和评估指标"""
     df_result = pd.DataFrame({
@@ -134,7 +145,7 @@ if __name__ == "__main__":
     parser.add_argument('--file_path', type=str,
                        help='Excel文件路径', default=r'E:\Work\algorithms\Job01\inputdata\ZD数据表.xlsx')
     parser.add_argument('--k', type=str,
-                       help='目标变量（如"总成本"）', default='总成本')
+                       help='目标变量（如"总成本预测模型"）', default='总成本预测模型')
     parser.add_argument('--type', type=str,
                        help='ZD类型（如"单筒"/"双筒"）', default='单筒')
     args = parser.parse_args()
