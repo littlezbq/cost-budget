@@ -1,7 +1,9 @@
 # data_model.py
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import Literal
 
+
+# 定义ZD的页面数据模板，需要考虑下拉的一对多的情况，最终返回的是和训练数据一致的一对一的键值对。
 # ========== 【核心】定义所有下拉框的可选值（与前端下拉选项完全一致） ==========
 # 有无下拉：通用选项
 YES_NO_OPTIONS = Literal["有", "无"]
@@ -35,9 +37,40 @@ class EnterDataReq_ZD(BaseModel):
     SM_总寿命_起落: float = Field(alias="SM-总寿命(起落)")
     SM_总寿命_拦阻: float = Field(alias="SM-总寿命(拦阻)")
 
-    # 可选校验：数值字段非负校验（防止前端传负数，按需开启）
-    @field_validator('XHYD', 'JYYL', 'MF_内漏量', 'XC', 'ZL', 'SM_总寿命_FH')
-    def validate_positive_num(cls, v):
-        if v < 0:
-            raise ValueError("数值字段不可为负数，请检查后重新输入")
-        return v
+
+
+# 定义XD的页面数据模板，XD的模板相对简单，只有部分参数是有无的下拉框，无一对多的情况。
+
+
+class EnterDataReq_XD(BaseModel):
+    """
+    页面手动录入请求模型（与前端表单1:1对应）
+    ✅ 数值字段：保持原始类型，接收页面输入值
+    """
+    JL: YES_NO_OPTIONS
+    CD: YES_NO_OPTIONS
+    WZSF: YES_NO_OPTIONS
+    WZKG: YES_NO_OPTIONS
+    LJBH: YES_NO_OPTIONS
+    XCXW: YES_NO_OPTIONS
+    JS: float
+    ZJ:float
+    CBD:float
+    JX:float
+    DCJR:float
+    短时高温:YES_NO_OPTIONS
+    耐火要求: YES_NO_OPTIONS
+    炮振要求: YES_NO_OPTIONS
+    工作包线内表面温度要求: YES_NO_OPTIONS
+    除冰温度要求: YES_NO_OPTIONS
+    防火和可燃性: YES_NO_OPTIONS
+    DQY: YES_NO_OPTIONS
+    WG: YES_NO_OPTIONS
+    SR_温度下: float=Field(alias="SR-温度下")
+    SR_时间:float=Field(alias="SR-时间")
+    YW_时间:float=Field(alias="YW-时间")
+    YW_溶液pH值下界:float = Field(alias="YW-溶液pH值下界")
+    YW_溶液pH值上界:float = Field(alias="YW-溶液pH值上界")
+    PJZD:YES_NO_OPTIONS
+    ZS:YES_NO_OPTIONS
+

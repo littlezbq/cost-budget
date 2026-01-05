@@ -1,7 +1,7 @@
 # 依赖方法
 from fastapi import UploadFile
-
-from entites.data_model import EnterDataReq_ZD
+from typing import Union
+from entites.data_model import EnterDataReq_ZD, EnterDataReq_XD
 
 
 def verify_file(file: UploadFile) -> UploadFile:
@@ -13,11 +13,26 @@ def verify_file(file: UploadFile) -> UploadFile:
     return file
 
 
-def verify_data(data: EnterDataReq_ZD) -> EnterDataReq_ZD:
-    """
-    输入数据字段校验
-    :param data:
-    :return:
-    """
 
+# 单独的 ZD 数据校验函数
+def verify_data_zd(data: EnterDataReq_ZD) -> EnterDataReq_ZD:
+    """ZD 输入数据字段校验"""
+    # 可添加 ZD 专属校验逻辑
     return data
+
+# 单独的 XD 数据校验函数
+def verify_data_xd(data: EnterDataReq_XD) -> EnterDataReq_XD:
+    """XD 输入数据字段校验"""
+    # 可添加 XD 专属校验逻辑
+    return data
+
+#
+#
+# def verify_data(data: Union[EnterDataReq_ZD,EnterDataReq_XD]) -> Union[EnterDataReq_ZD,EnterDataReq_XD]:
+#     """
+#     输入数据字段校验
+#     :param data:
+#     :return:
+#     """
+#
+#     return data
