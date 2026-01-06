@@ -15,9 +15,9 @@ column_names = ['JL', 'CD', 'WZSF', 'WZKG', 'LJBH', 'XCXW', 'JS', 'ZJ', 'CDB', '
 
 # 目标中英对照
 dict_col = {
-    '总成本预测模型': 'total',
-    '直接材料成本预测模型': 'material',
-    '直接人工和制造费用成本预测模型': 'manlab'
+    '总成本': 'total',
+    '直接材料': 'material',
+    '直接人工+制造费用': 'manlab'
 }
 
 def train_and_save_xd_model(file_path, k):
@@ -73,7 +73,7 @@ def train_and_save_xd_model(file_path, k):
     bst.save_model(model_path)
 
     # 保存结果
-    save_results(
+    excel_path = save_results(
         y_true=y.values,
         y_pred=y_pred,
         r2=r2,
@@ -88,6 +88,15 @@ def train_and_save_xd_model(file_path, k):
     print(f"模型已保存: {model_path}")
     print(f"R2: {r2:.4f}, MAPE: {mape:.6f}, RMSE: {rmse:.6f}")
 
+    return {
+        "model_path": os.path.abspath(model_path),  # 模型文件绝对路径（前端可直接下载）
+        "excel_path": os.path.abspath(excel_path),  # 所有结果文件的输出根目录
+        "r2": round(r2, 4),  # 模型评估指标R2（保留4位小数）
+        "mape": round(mape, 6),  # 模型评估指标MAPE（保留6位小数）
+        "rmse": round(rmse, 4),  # 模型评估指标RMSE（保留4位小数）
+        "target_var": k,  # 训练的目标变量（如：总成本、直接材料）
+        "train_time": timestamp  # 训练时间戳（和模型文件名一致）
+    }
 
 def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, timestamp):
     """保存预测结果和评估指标"""
@@ -106,7 +115,7 @@ def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, timestamp):
         "特征列": [column_names]
     })
 
-    excel_path = os.path.join(save_dir, f"xd_{dict_col[k]}_{timestamp}..xlsx")
+    excel_path = os.path.join(save_dir, f"xd_{dict_col[k]}_{timestamp}.xlsx")
     sheet_name_result = f"xd_{dict_col[k]}_{timestamp}"[:31]  # Excel工作表名最大31字符
 
     if os.path.exists(excel_path):
@@ -117,6 +126,8 @@ def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, timestamp):
         with pd.ExcelWriter(excel_path, engine="openpyxl", mode="w") as writer:
             df_result.to_excel(writer, sheet_name=sheet_name_result, index=False)
             df_metrics.to_excel(writer, sheet_name=f"xd_{dict_col[k]}_metrics", index=False)
+    return excel_path
+
 
 
 if __name__ == "__main__":
@@ -125,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument('--file_path', type=str,
                         help='Excel文件路径', default=r'E:\Work\algorithms\Job01\inputdata\XD数据表.xlsx')
     parser.add_argument('--k', type=str,
-                        help='模型名称/目标变量，例如: 直接人工+制造费用', default='直接人工+制造费用')
+                        help='模型名称/目标变量，例如: 直接人工+制造费用', default='总成本')
     args = parser.parse_args()
 
     # 调用主函数

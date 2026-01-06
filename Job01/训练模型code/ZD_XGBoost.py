@@ -13,9 +13,9 @@ column_names = ['DW','XHFK-到位反馈','XHFK-位置反馈','XHFS-LVDT','XHFS-�
 
 # 目标变量中英对照（可选）
 dict_col = {
-    '总成本预测模型': 'total',
-    '直接材料成本预测模型': 'material',
-    '直接人工和制造费用成本预测模型': 'manlab'
+    '总成本': 'total',
+    '直接材料': 'material',
+    '直接人工+制造费用': 'manlab'
 }
 
 dict_tong = {
@@ -83,7 +83,7 @@ def train_and_save_zd_model(file_path, k, zd_type):
     bst.save_model(model_path)
 
     # 保存结果
-    save_results(
+    excel_path = save_results(
         y_true=y.values,
         y_pred=y_pred,
         r2=r2,
@@ -101,14 +101,15 @@ def train_and_save_zd_model(file_path, k, zd_type):
 
     # 新增返回值
     return {
-        "model_path": model_path,
-        "r2": round(r2, 4),
-        "mape": round(mape, 6),
-        "rmse": round(rmse, 6),
-        "target_var": k,
-        "zd_type": zd_type,
-        "timestamp": timestamp
+        "model_path": os.path.abspath(model_path),  # 模型文件绝对路径（前端可直接下载）
+        "excel_path": os.path.abspath(excel_path),  # 所有结果文件的输出根目录
+        "r2": round(r2, 4),  # 模型评估指标R2（保留4位小数）
+        "mape": round(mape, 6),  # 模型评估指标MAPE（保留6位小数）
+        "rmse": round(rmse, 4),  # 模型评估指标RMSE（保留4位小数）
+        "target_var": k,  # 训练的目标变量（如：总成本、直接材料）
+        "train_time": timestamp  # 训练时间戳（和模型文件名一致）
     }
+
 
 def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, zd_type, timestamp):
     """保存预测结果和评估指标"""
@@ -138,6 +139,8 @@ def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, zd_type, timestamp
         with pd.ExcelWriter(excel_path, engine="openpyxl", mode="w") as writer:
             df_result.to_excel(writer, sheet_name=sheet_name_result, index=False)
             df_metrics.to_excel(writer, sheet_name=f"zd_{zd_type}_metrics", index=False)
+    return excel_path
+
 
 if __name__ == "__main__":
     # 命令行参数配置
@@ -145,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument('--file_path', type=str,
                        help='Excel文件路径', default=r'E:\Work\algorithms\Job01\inputdata\ZD数据表.xlsx')
     parser.add_argument('--k', type=str,
-                       help='目标变量（如"总成本预测模型"）', default='总成本预测模型')
+                       help='目标变量（如"总成本预测模型"）', default='总成本')
     parser.add_argument('--type', type=str,
                        help='ZD类型（如"单筒"/"双筒"）', default='单筒')
     args = parser.parse_args()

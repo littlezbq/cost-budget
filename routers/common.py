@@ -11,7 +11,7 @@ from starlette import status
 from core.verify_files import verify_file, verify_data_xd,verify_data_zd
 from entites.data_model import EnterDataReq_ZD,EnterDataReq_XD
 
-router = APIRouter(prefix="/api/common", tags=['common'])
+router = APIRouter(prefix="/api/common", tags=['上传数据总入口'])
 
 
 # 文件存储根目录（Excel和JSON统一存放，便于管理）
@@ -36,7 +36,7 @@ column_names_zd = ['DW', 'XHFK-到位反馈', 'XHFK-位置反馈', 'XHFS-LVDT', 
 #==========================================ZD批量导入录入数据用于预测或者训练=================================================
 # 这里需要做单双筒的区分，产品一就应对单筒的批量导入，产品二应对双筒的批量导入，这样做的目的就是产品一上传的excel数据，必须包含“单筒”的sheet页面,产品二的必须包含“双筒”的sheet页面。
 # 产品一 ： ZD单筒的批量导入
-@router.post("/upload_zddt", status_code=status.HTTP_200_OK)
+@router.post("/upload_zddt", status_code=status.HTTP_200_OK,summary="【产品一】ZD单筒批量导入（专属接口）")
 async def upload_zddt(file: UploadFile = Depends(verify_file)):
     """
     Excel批量上传接口【最终版】
@@ -84,7 +84,7 @@ async def upload_zddt(file: UploadFile = Depends(verify_file)):
 
 
 #  产品二： ZD双筒的批量导入
-@router.post("/upload_zdst", status_code=status.HTTP_200_OK)
+@router.post("/upload_zdst", status_code=status.HTTP_200_OK,summary="【产品二】ZD双筒批量导入（专属接口）")
 async def upload_zdst(file: UploadFile = Depends(verify_file)):
     """
     Excel批量上传接口【最终版】
@@ -191,7 +191,7 @@ def convert_to_train_format_zd(input_dict: dict) -> dict:
     return train_data
 
 
-@router.post("/enter_data_zd", status_code=status.HTTP_200_OK)
+@router.post("/enter_data_zd", status_code=status.HTTP_200_OK,summary="【产品一&产品二】ZD单双筒手动录入（公用接口）")
 async def enter_data_zd(input_data: EnterDataReq_ZD = Depends(verify_data_zd)):
     """
     单条手动录入接口【最终版】
@@ -230,7 +230,7 @@ column_names_xd = ['JL', 'CD', 'WZSF', 'WZKG', 'LJBH', 'XCXW', 'JS', 'ZJ', 'CDB'
                    'SR-时间',
                    'YW-时间', 'YW-溶液pH值下界', 'YW-溶液pH值上界', 'PJZD', 'ZS']
 # 产品三：XD的批量导入
-@router.post("/upload_xd", status_code=status.HTTP_200_OK)
+@router.post("/upload_xd", status_code=status.HTTP_200_OK,summary="【产品三】XD批量导入（专属接口）")
 async def upload_xd(file: UploadFile = Depends(verify_file)):
     """
     Excel批量上传接口【最终版】
@@ -320,7 +320,7 @@ def convert_to_train_format_xd(input_dict: dict) -> dict:
     return train_data
 
 
-@router.post("/enter_data_xd", status_code=status.HTTP_200_OK)
+@router.post("/enter_data_xd", status_code=status.HTTP_200_OK,summary="【产品三】XD手动录入（专属接口）")
 async def enter_data_xd(input_data: EnterDataReq_XD = Depends(verify_data_xd)):
     """
     单条手动录入接口【最终版】
