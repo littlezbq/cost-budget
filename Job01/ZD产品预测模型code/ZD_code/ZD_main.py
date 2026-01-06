@@ -30,21 +30,22 @@ data = {
 #
 # result = run_prediction(2, data)
 # print(result)
-
+# 单筒模型
 model_map = {
-    1: {
         'material': 'zddt_material_202511021713.json',
         'manufacture_labour': 'zddt_manlab_202511021715.json',
-        'total_cost': 'zddt_total_202511021716.json'
-    },  # 1代表作动单筒
-    2: {
-        'material': 'zdst_material_202511021711.json',
-        'manufacture_labour': 'zdst_manlab_202511021709.json',
-        'total_cost': 'zdst_total_202511021707.json'
-    }  # 2代表作动双筒
-}
+        'total_cost': 'zddt_total_202511021716.json'}
+
+# 双筒模型
+# model_map = {
+#         'material': 'zdst_material_202511021711.json',
+#         'manufacture_labour': 'zdst_manlab_202511021709.json',
+#         'total_cost': 'zdst_total_202511021707.json'
+# }
 
 
+result = run_prediction(data_dict=data, model_map=model_map)
+# print(result)
 
 
 # if __name__ == "__main__":
@@ -66,5 +67,5 @@ model_map = {
 
 
 #
-result = run_prediction(2,data, model_map=model_map)
-print(result)
+# result = run_prediction(2,data, model_map=model_map)
+# print(result)

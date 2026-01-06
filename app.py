@@ -3,7 +3,7 @@ import uvicorn
 from starlette.middleware.cors import CORSMiddleware
 
 from routers import common
-from routers import model_train
+from routers import model_train,model_predict
 
 app = FastAPI()
 
@@ -24,6 +24,7 @@ app.add_middleware(
 # 添加路由
 app.include_router(common.router)
 app.include_router(model_train.router)
+app.include_router(model_predict.router)
 
 @app.get("/hello")
 async def hello_world():
