@@ -33,7 +33,7 @@ class ZDSingleTrainRequest(BaseTrainRequest):
 
 
 # 导入产品一/二共用的ZD训练函数
-from Job01.训练模型code.ZD_XGBoost import train_and_save_zd_model
+from Job01.训练模型code.ZD_XGBoost import train_and_save_zd_model,save_zd_model_permanent
 
 
 @router.post("/zd-single", summary="【产品一】ZD单筒模型训练（专属接口）")
@@ -42,8 +42,6 @@ async def train_zd_single(request: ZDSingleTrainRequest):
         # 1. 校验文件存在
         if not os.path.exists(request.file_path):
             raise HTTPException(status_code=400, detail=f"文件不存在：{request.file_path}")
-
-
 
         # 2. 映射前端参数到模型实际参数
         model_k = TARGET_MAPPING.get(request.target_var)
@@ -63,10 +61,8 @@ async def train_zd_single(request: ZDSingleTrainRequest):
 
         return {
             "code": 200,
-            "msg": "【产品一】ZD单筒模型训练成功",
-            "data": train_result,
-            "original_target": request.target_var,
-            "mapped_target": model_k
+            "msg": "【产品一】ZD单筒模型训练成功（模型已保存到临时目录）",
+            "data": train_result
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"【产品一】训练失败：{str(e)}")
@@ -102,13 +98,22 @@ async def train_zd_double(request: ZDDoubleTrainRequest):
 
         return {
             "code": 200,
-            "msg": "【产品二】ZD双筒模型训练成功",
-            "data": train_result,
-            "original_target": request.target_var,
-            "mapped_target": model_k
+            "msg": "【产品二】ZD双筒模型训练成功（模型已保存到临时目录）",
+            "data": train_result
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"【产品二】训练失败：{str(e)}")
+
+
+
+@router.post("/zd_save", summary="ZD模型永久保存，单双筒共用（复制临时文件到永久目录）")
+async def api_save_zd_perm(temp_model_path: str, temp_excel_path: str):
+    try:
+        save_result = save_zd_model_permanent(temp_model_path, temp_excel_path)
+        return {"code": 200, "msg": "模型永久保存成功", "data": save_result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"永久保存失败：{str(e)}")
+
 
 
 # ===================== ✅ 产品三：XD 专属训练接口 =====================
@@ -116,8 +121,11 @@ class XDTrainRequest(BaseTrainRequest):
     target_var: TARGET = Field(..., description="产品三(XD)目标变量（下拉选择）")
 
 
+
+
+
 # 导入XD专属训练函数
-from Job01.训练模型code.XD_XGBoost import train_and_save_xd_model
+from Job01.训练模型code.XD_XGBoost import train_and_save_xd_model,save_xd_model_permanent
 
 
 @router.post("/xd", summary="【产品三】XD模型训练（专属接口）")
@@ -145,10 +153,17 @@ async def train_xd(request: XDTrainRequest):
 
         return {
             "code": 200,
-            "msg": "【产品三】XD模型训练成功",
-            "data": train_result,
-            "original_target": request.target_var,
-            "mapped_target": model_k
+            "msg": "【产品三】XD模型训练成功（模型已保存到临时目录）",
+            "data": train_result
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"【产品三】训练失败：{str(e)}")
+
+@router.post("/xd_save", summary="XD模型永久保存（复制临时文件到永久目录）")
+async def api_save_xd_perm(temp_model_path: str, temp_excel_path: str):
+    try:
+        save_result = save_xd_model_permanent(temp_model_path, temp_excel_path)
+        return {"code": 200, "msg": "模型永久保存成功", "data": save_result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"永久保存失败：{str(e)}")
+
