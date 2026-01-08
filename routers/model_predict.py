@@ -1,175 +1,140 @@
-import os
+from fastapi import APIRouter, HTTPException, Body
+import json
 import math
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-import asyncio
-from functools import partial
-from typing import Any
+# 导入上面的XD预测函数
+from Job01.XD产品预测模型code.XD_code.XD_predict import batch_run_xd_prediction
+from Job01.ZD产品预测模型code.ZD_code.ZD_predict import batch_run_zd_prediction
 
-# ===================== 全局配置 =====================
-router = APIRouter(prefix="/model/predict", tags=["模型预测总入口"])
-
-# ✅ 1. 模型路径规则【严格对齐你的训练代码保存路径】
-BASE_OUTPUT_DIR = os.path.abspath("output")
-MODEL_DIR_MAP = {
-    # ZD单筒
-    "zd-single": {
-        "total_cost": os.path.join(BASE_OUTPUT_DIR, "zd_model"),
-        "material": os.path.join(BASE_OUTPUT_DIR, "zd_model"),
-        "manufacture_labour": os.path.join(BASE_OUTPUT_DIR, "zd_model")
-    },
-    # ZD双筒
-    "zd-double": {
-        "total_cost": os.path.join(BASE_OUTPUT_DIR, "zd_model"),
-        "material": os.path.join(BASE_OUTPUT_DIR, "zd_model"),
-        "manufacture_labour": os.path.join(BASE_OUTPUT_DIR, "zd_model")
-    },
-    # XD产品
-    "xd": {
-        "total_cost": os.path.join(BASE_OUTPUT_DIR, "xd_model"),
-        "material": os.path.join(BASE_OUTPUT_DIR, "xd_model"),
-        "manufacture_labour": os.path.join(BASE_OUTPUT_DIR, "xd_model")
-    }
-}
-
-# ✅ 2. 导入预测函数（保持你的原有路径）
-from Job01.ZD产品预测模型code.ZD_code.ZD_predict import batch_run_prediction as zd_run_prediction
-from Job01.XD产品预测模型code.XD_code.XD_predict import batch_run_prediction as xd_run_prediction
+# 全局JSON序列化钩子：处理inf/nan
+class SafeJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, float):
+            if math.isinf(obj) or math.isnan(obj):
+                return 0.0
+        return super().default(obj)
 
 
-# ===================== 核心工具函数：清洗inf/nan（解决JSON序列化报错） =====================
-def clean_inf_nan(obj: Any) -> Any:
-    """递归清洗结果中的inf/nan，替换为None（JSON兼容）"""
-    if isinstance(obj, float):
-        if math.isinf(obj) or math.isnan(obj):
-            return None
-        return obj
-    elif isinstance(obj, dict):
-        return {k: clean_inf_nan(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [clean_inf_nan(item) for item in obj]
-    else:
-        return obj
+router = APIRouter(prefix="/predict", tags=["产品预测"])
 
 
-# ===================== 请求体模型（保持不变） =====================
-class PredictRequest(BaseModel):
-    """所有预测接口通用请求体 → 前端固定传这4个参数"""
-    file_path: str = Field(..., description="数据文件绝对路径（store_files下的Excel/JSON）")
-    total_cost: str = Field(..., description="下拉选中的【总成本模型】文件名（如zddt_total_20260106.json）")
-    material: str = Field(..., description="下拉选中的【直接材料模型】文件名（如zddt_material_20260106.json）")
-    manufacture_labour: str = Field(..., description="下拉选中的【直接人工模型】文件名（如zddt_manlab_20260106.json）")
 
-
-# ===================== 通用工具函数（核心修改：匹配test的model_map格式） =====================
-def assemble_model_paths(product_key: str, req: PredictRequest) -> dict:
-    """✅ 核心修改：返回和test一致的model_map（文件名+key为total_cost/material/manufacture_labour）
-    :param product_key: 产品标识 zd-single/zd-double/xd
-    :param req: 前端请求体
-    :return: model_map → {"total_cost":文件名, "material":文件名, "manufacture_labour":文件名}
+@router.post("/zd-single", summary="ZD单筒预测（支持JSON/Excel上传）")
+async def zd_single_predict_api(
+        # 修复1：example → examples，且值为列表格式
+        file: str = Body(...,
+                         examples=[r"E:\Work\cost\cost-budget\store_files\04b77b3b-f588-4ad3-8025-488864ac1d2a.xlsx"]),
+        model_map: dict = Body(..., examples=[{
+            "material": "zddt_material_202601071437.json",
+            "manufacture_labour": "zddt_manlab_202601071439.json",
+            "total_cost": "zddt_total_202601071413.json"
+        }]),
+        ori_db_path: str = Body(..., examples=[r"E:\Work\cost\cost-budget\Job01\inputdata\ZD数据表.xlsx"])
+):
     """
-    # 1. 构建模型文件路径（用于校验存在性）
-    model_path_check = {
-        "total_cost": os.path.join(MODEL_DIR_MAP[product_key]["total_cost"], req.total_cost),
-        "material": os.path.join(MODEL_DIR_MAP[product_key]["material"], req.material),
-        "manufacture_labour": os.path.join(MODEL_DIR_MAP[product_key]["manufacture_labour"], req.manufacture_labour)
-    }
-
-    # 2. 批量校验模型文件存在+格式
-    for name, path in model_path_check.items():
-        abs_path = os.path.abspath(path)
-        if not os.path.exists(abs_path):
-            raise HTTPException(status_code=404, detail=f"{name}模型文件不存在 → {abs_path}")
-        if not abs_path.endswith(".json"):
-            raise HTTPException(status_code=400, detail=f"{name}模型文件格式错误，仅支持.json → {path}")
-
-    # 3. 校验数据文件存在
-    data_file_path = os.path.abspath(req.file_path)
-    if not os.path.exists(data_file_path):
-        raise HTTPException(status_code=404, detail=f"预测数据文件不存在 → {data_file_path}")
-
-    # 4. 返回和test完全一致的model_map（仅传文件名，非完整路径）
-    model_map = {
-        "total_cost": req.total_cost,
-        "material": req.material,
-        "manufacture_labour": req.manufacture_labour
-    }
-    return model_map
-
-
-def get_async_loop():
-    """✅ 兼容Python版本的异步循环（保持不变）"""
+    ZD单筒预测接口：
+    1. 上传JSON/Excel文件
+    2. 自动预测成本
+    3. 对比数据库Excel找Top5相似产品
+    4. 生成SHAP分析文件
+    """
     try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop
-
-
-# ===================== 🔧 接口1：ZD单筒 预测接口（核心修改） =====================
-@router.post("/zd-single", summary="【产品一】ZD单筒预测（专属接口）")
-async def predict_zd_single(req: PredictRequest):
-    try:
-        # ✅ 步骤1：获取和test一致的model_map（文件名）
-        model_map = assemble_model_paths("zd-single", req)
-        data_file_path = os.path.abspath(req.file_path)
-
-        # ✅ 步骤2：异步调用（指定参数名，匹配test的调用方式）
-        loop = get_async_loop()
-        call_func = partial(
-            zd_run_prediction,
-            file_path=data_file_path,  # 匹配test中的test_file_path参数
-            model_map=model_map  # 匹配test中的model_map参数
+        # 1. 调用批量预测函数
+        predict_result = batch_run_zd_prediction(
+            file_path=file,
+            model_map=model_map,
+            ori_db_path=ori_db_path,
+            type = "单筒"
         )
-        pred_result = await loop.run_in_executor(None, call_func)
 
-        # ✅ 步骤3：清洗inf/nan，解决JSON序列化报错
-        cleaned_result = clean_inf_nan(pred_result)
+        # 2. 手动序列化结果，确保无非法值（关键修复）
+        safe_result = json.loads(json.dumps(predict_result, cls=SafeJSONEncoder))
 
-        # ✅ 步骤4：返回清洗后的结果
-        return {"code": 200, "msg": "ZD单筒预测成功", "data": cleaned_result}
+        # 3. 返回结果
+        return {
+            "code": 200,
+            "msg": "ZD单筒预测完成",
+            "data": safe_result
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ZD单筒预测失败：{str(e)}")
 
 
-# ===================== 🔧 接口2：ZD双筒 预测接口（核心修改） =====================
-@router.post("/zd-double", summary="【产品二】ZD双筒预测（专属接口）")
-async def predict_zd_double(req: PredictRequest):
+@router.post("/zd-double", summary="ZD单筒预测（支持JSON/Excel上传）")
+async def zd_double_predict_api(
+        # 修复1：example → examples，且值为列表格式
+        file: str = Body(...,
+                         examples=[r"E:\Work\cost\cost-budget\store_files\04b77b3b-f588-4ad3-8025-488864ac1d2a.xlsx"]),
+        model_map: dict = Body(..., examples=[{
+            "material": "zdst_material_202511021711.json",
+            "manufacture_labour": "zdst_manlab_202511021709.json",
+            "total_cost": "zdst_total_202511021707.json"
+        }]),
+        ori_db_path: str = Body(..., examples=[r"E:\Work\cost\cost-budget\Job01\inputdata\ZD数据表.xlsx"])
+):
+    """
+    ZD双筒预测接口：
+    1. 上传JSON/Excel文件
+    2. 自动预测成本
+    3. 对比数据库Excel找Top5相似产品
+    4. 生成SHAP分析文件
+    """
     try:
-        model_map = assemble_model_paths("zd-double", req)
-        data_file_path = os.path.abspath(req.file_path)
-
-        loop = get_async_loop()
-        call_func = partial(
-            zd_run_prediction,
-            file_path=data_file_path,
-            model_map=model_map
+        # 1. 调用预测函数
+        predict_result = batch_run_zd_prediction(
+            file_path=file,
+            model_map=model_map,
+            ori_db_path=ori_db_path,
+            type="双筒"
         )
-        pred_result = await loop.run_in_executor(None, call_func)
 
-        cleaned_result = clean_inf_nan(pred_result)
-        return {"code": 200, "msg": "ZD双筒预测成功", "data": cleaned_result}
+        # 2. 手动序列化结果，确保无非法值（关键修复）
+        safe_result = json.loads(json.dumps(predict_result, cls=SafeJSONEncoder))
+
+        # 3. 返回结果
+        return {
+            "code": 200,
+            "msg": "ZD双筒预测完成",
+            "data": safe_result
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ZD双筒预测失败：{str(e)}")
 
 
-# ===================== 🔧 接口3：XD 预测接口（核心修改） =====================
-@router.post("/xd", summary="【产品三】XD预测（专属接口）")
-async def predict_xd(req: PredictRequest):
+@router.post("/xd", summary="XD批量预测（支持JSON/Excel上传）")
+async def xd_predict_api(
+        # 修复1：example → examples，且值为列表格式
+        file: str = Body(...,
+                         examples=[r"E:\Work\cost\cost-budget\store_files\a859e926-7555-4ec9-bed6-f490e5e72cd7.xlsx"]),
+        model_map: dict = Body(..., examples=[{
+            "material": "xd_material_202511301628.json",
+            "manufacture_labour": "xd_manlab_202511301629.json",
+            "total_cost": "xd_total_202511301626.json"
+        }]),
+        ori_db_path: str = Body(..., examples=[r"E:\Work\cost\cost-budget\Job01\inputdata\XD数据表.xlsx"])
+):
+    """
+    XD批量预测接口：
+    1. 上传JSON/Excel文件
+    2. 自动预测成本
+    3. 对比数据库Excel找Top5相似产品
+    4. 生成SHAP分析文件
+    """
     try:
-        model_map = assemble_model_paths("xd", req)
-        data_file_path = os.path.abspath(req.file_path)
-
-        loop = get_async_loop()
-        call_func = partial(
-            xd_run_prediction,
-            file_path=data_file_path,
-            model_map=model_map
+        # 1. 调用批量预测函数
+        predict_result = batch_run_xd_prediction(
+            file_path=file,
+            model_map=model_map,
+            ori_db_path=ori_db_path
         )
-        pred_result = await loop.run_in_executor(None, call_func)
 
-        cleaned_result = clean_inf_nan(pred_result)
-        return {"code": 200, "msg": "XD预测成功", "data": cleaned_result}
+        # 2. 手动序列化结果，确保无非法值（关键修复）
+        safe_result = json.loads(json.dumps(predict_result, cls=SafeJSONEncoder))
+
+        # 3. 返回结果
+        return {
+            "code": 200,
+            "msg": "XD批量预测完成",
+            "data": safe_result
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"XD预测失败：{str(e)}")
