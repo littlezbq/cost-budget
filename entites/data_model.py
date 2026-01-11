@@ -74,3 +74,67 @@ class EnterDataReq_XD(BaseModel):
     PJZD:YES_NO_OPTIONS
     ZS:YES_NO_OPTIONS
 
+
+# data_model.py 末尾新增
+class EnterDataReq_DFX(BaseModel):
+    """
+    DFX计算页面手动录入请求模型（与前端表单1:1对应）
+    ✅ 数值字段：输入的符合率（0-100 或 0-1，根据页面设计）
+    ✅ 权重字段：带默认值，总和保证为1（100%）
+    """
+    # DFM（Design For Manufacture）可制造性设计
+    工艺性符合率含装配_输入数值: float = Field(..., description="工艺性符合率（含装配）输入值")
+    工艺性符合率含装配_指标权重: float = Field(default=0.111672, description="工艺性符合率权重")
+
+    加工要求符合率_输入数值: float = Field(..., description="加工要求符合率输入值")
+    加工要求符合率_指标权重: float = Field(default=0.074448, description="加工要求符合率指标权重")
+
+
+    试验设备优选率_输入数值: float = Field(..., description="试验设备优选率输入值")
+    试验设备优选率_指标权重: float = Field(default=0.040326, description="试验设备优选率指标权重")
+
+
+    装配返工率_输入数值: float = Field(..., description="装配返工率输入值")
+    装配返工率_指标权重: float = Field(default=0.055836, description="装配返工率指标权重")
+
+
+    新增专用工装夹具_输入数值: float = Field(..., description="新增专用工装夹具输入值")
+    新增专用工装夹具_指标权重: float = Field(default=0.027918, description="新增专用工装夹具指标权重")
+
+
+    # DFP （Design For Procurement） 可采购性
+    二配件成本占比_输入数值: float = Field(..., description="二配件成本占比输入值")
+    二配件成本占比_指标权重: float = Field(default=0.055706, description="二配件成本占比指标权重")
+
+    成件优选率_输入数值: float = Field(..., description="成件优选率输入值")
+    成件优选率_指标权重: float = Field(default=0.042385, description="成件优选率指标权重")
+
+    单一来源占比_不含协议和特殊规定_输入数值: float = Field(..., description="单一来源占比（不含协议和特殊规定）输入值")
+    单一来源占比_不含协议和特殊规定_指标权重: float = Field(default=0.023009, description="试验设备优选率指标权重")
+
+
+    # DFR （Design For Reusability） 可重用性设计
+    自制件CBB复用率_输入数值: float = Field(..., description="自制件CBB复用率输入值")
+    自制件CBB复用率_指标权重: float = Field(default=0.239085, description="自制件CBB复用率指标权重")
+
+    标准化率_输入数值: float = Field(..., description="标准化率输入值")
+    标准化率_指标权重: float = Field(default=0.13041, description="标准化率指标权重")
+
+    材料优选率_输入数值: float = Field(..., description="材料优选率输入值")
+    材料优选率_指标权重: float = Field(default=0.065205, description="材料优选率指标权重")
+
+    # DFS （Design For Service） 可维修性
+    有寿件成本占比_输入数值: float = Field(..., description="有寿件成本占比输入值")
+    有寿件成本占比_指标权重: float = Field(default=0.04556, description="有寿件成本占比指标权重")
+
+    二配有寿件成本占比_输入数值: float = Field(..., description="二配有寿件成本占比输入值")
+    二配有寿件成本占比_指标权重: float = Field(default=0.03886, description="二配有寿件成本占比指标权重")
+
+    非必换报废件成本占比_输入数值: float = Field(..., description="非必换报废件成本占比输入值")
+    非必换报废件成本占比_指标权重: float = Field(default=0.01876, description="非必换报废件成本占比指标权重")
+
+    维修返工_修_占比_输入数值: float = Field(..., description="维修返工（修）占比输入值")
+    维修返工_修_占比_指标权重: float = Field(default=0.03082, description="维修返工（修）占比指标权重")
+
+
+

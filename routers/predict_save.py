@@ -5,32 +5,52 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Dict, Any
 from pathlib import Path
+from core.path_store import path_store
+import shutil
+from core.config import TEMP_PREDICT_PATH,PERM_PREDICT_PATH,FIXED_PREDICT_PATH
+
+
+def save_result_permanent(temp_path,perm_dir):
+    """
+    将临时目录的模型/结果文件复制到永久目录
+    :param temp_model_path: 临时模型文件路径（训练返回的temp_model_path）
+    :param temp_excel_path: 临时Excel结果路径
+    :return: 永久目录的文件路径
+    """
+    # 1. 校验临时文件是否存在
+    if not os.path.exists(temp_path):
+        raise ValueError(f"临时文件不存在 → {temp_path}")
+
+
+    # 2. 构建永久目录路径（按筒型/目标变量分类，便于管理）
+    # 从临时文件名中解析筒型/目标变量（比如zd_dt_total_202601071234.json → dt/total）
+    model_filename = os.path.basename(temp_path)
+    perm_dir = Path(perm_dir).absolute()
+    os.makedirs(perm_dir, exist_ok=True)
+
+    # 3. 复制文件到永久目录（保留原文件名）
+    perm_path = os.path.join(perm_dir, model_filename)
+    # 复制模型文件
+    shutil.copy2(temp_path, perm_path)
+    print(f"✅ 结果已永久保存：{os.path.abspath(perm_path)}")
+    return os.path.abspath(perm_path)
+
+
+
+
 
 # ===================== 全局配置 =====================
 router = APIRouter(prefix="/model/predict/save", tags=["预测结果保存"])
 
-# 预测结果保存根目录（自动创建，支持绝对路径/相对路径）
-SAVE_ROOT_DIR = Path("predict_results").absolute()
-# 按产品分类子目录 + 对应产品名称（用于生成文件名）
-PRODUCT_CONFIG = {
-    "zd-single": {"dir": SAVE_ROOT_DIR / "zd" / "single", "name": "zd单筒"},
-    "zd-double": {"dir": SAVE_ROOT_DIR / "zd" / "double", "name": "zd双筒"},
-    "xd": {"dir": SAVE_ROOT_DIR / "xd", "name": "xd"}
-}
-
-# 自动创建所有目录（递归创建，避免路径不存在）
-for config in PRODUCT_CONFIG.values():
-    config["dir"].mkdir(parents=True, exist_ok=True)
-
 
 # ===================== 请求体模型（移除save_filename） =====================
-class SavePredictResultRequest(BaseModel):
-    """保存预测结果请求体：仅需传入预测结果，文件名自动生成"""
-    predict_result: Dict[str, Any] = Field(..., description="预测接口返回的完整结果（原封不动传入）")
+# class SavePredictResultRequest(BaseModel):
+#     """保存预测结果请求体：仅需传入预测结果，文件名自动生成"""
+#     predict_result: Dict[str, Any] = Field(..., description="预测接口返回的完整结果（原封不动传入）")
 
 
 # ===================== 通用工具函数（优化文件名生成） =====================
-def _save_predict_json(result: Dict[str, Any], save_dir: Path, product_name: str) -> dict:
+def _save_predict_json(result: Dict[str, Any], save_dir: Path, product_name: str):
     """
     通用JSON保存函数
     :param result: 预测结果字典
@@ -59,84 +79,146 @@ def _save_predict_json(result: Dict[str, Any], save_dir: Path, product_name: str
         raise RuntimeError(f"写入JSON文件失败：{str(e)}")
 
     # 4. 返回标准化结果
-    return {
-        "save_filename": filename,
-        "save_abs_path": str(save_path.absolute()),
-        "save_relative_path": str(save_path.relative_to(Path.cwd())),  # 相对当前工作目录
-        "note": "预测结果未做任何修改，完全保留原始格式"
-    }
+    return save_path.absolute()
 
 
-# ===================== 业务接口：ZD单筒 =====================
-@router.post("/zd-single", summary="【ZD】单筒预测结果保存为JSON")
-async def save_zd_single_predict_result(req: SavePredictResultRequest):
+@router.post("/zddt_save_predict_perm", summary="ZD单筒预测结果永久保存【无参】→自动读取预测或修正后的预测结果，无需传参")
+async def api_save_zddt_predict_perm_auto():
     try:
-        # 1. 校验结果非空
-        if not req.predict_result:
-            raise HTTPException(status_code=400, detail="预测结果为空，无法保存")
+        # 核心逻辑：优先级读取 → 先读修正结果路径 → 读不到则读临时预测路径
+        save_model_path = None
 
-        # 2. 调用通用保存函数
-        save_info = _save_predict_json(
-            result=req.predict_result,
-            save_dir=PRODUCT_CONFIG["zd-single"]["dir"],
-            product_name=PRODUCT_CONFIG["zd-single"]["name"]
-        )
+        # 第一步：尝试读取修正后结果路径 (优先级高)
+        try:
+            save_model_path = path_store.read_path("zddt_cost_correction_path")
+        except KeyError:
+            # 无修正结果路径，不报错，继续尝试读临时路径
+            pass
 
-        # 3. 返回结果
-        return {
-            "code": 200,
-            "msg": "ZD单筒预测结果已成功保存为JSON",
-            "data": save_info
-        }
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 第二步：如果没读到修正路径，尝试读取临时预测路径
+        if not save_model_path:
+            try:
+                save_model_path = path_store.read_path("zddt_temp_predict_path")
+            except KeyError as e:
+                # 临时路径也读不到，抛出明确异常，提示必须先执行预测
+                raise HTTPException(status_code=400, detail=f"❌ 请先执行ZD单筒模型预测！未生成任何预测结果文件，{str(e)}")
+
+        # 关键校验：路径不能为空/None
+        if not save_model_path or len(str(save_model_path).strip()) == 0:
+            raise ValueError("读取到的预测结果路径为空，无法执行永久保存")
+
+        # 执行永久保存逻辑
+        save_result = save_result_permanent(save_model_path, PERM_PREDICT_PATH)
+
+        # 根据读取的路径类型，写入对应的永久路径key，保证路径存储的一致性
+        if "zddt_cost_correction_path" in locals():
+            path_store.write_path("zddt_fixed_predict_path", save_result)
+        else:
+            path_store.write_path("zddt_perm_predict_path", save_result)
+
+        return {"code": 200, "msg": "预测结果永久保存成功", "path": save_result}
+
+    except ValueError as e:
+        # 路径为空的业务异常
+        raise HTTPException(status_code=400, detail=f"❌ 永久保存失败：{str(e)}")
+    except OSError as e:
+        # 文件操作异常（权限不足/路径不存在/文件被占用）
+        raise HTTPException(status_code=500, detail=f"❌ 文件操作失败，保存预测结果失败：{str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"保存失败：{str(e)}")
+        # 兜底所有未捕获的异常
+        raise HTTPException(status_code=500, detail=f"❌ ZD预测结果永久保存异常：{str(e)}")
+
 
 
 # ===================== 业务接口：ZD双筒 =====================
-@router.post("/zd-double", summary="【ZD】双筒预测结果保存为JSON")
-async def save_zd_double_predict_result(req: SavePredictResultRequest):
+@router.post("/zdst_save_predict_perm", summary="ZD双筒预测结果永久保存【无参】→自动读取预测或修正后的预测结果，无需传参")
+async def api_save_zdst_predict_perm_auto():
     try:
-        if not req.predict_result:
-            raise HTTPException(status_code=400, detail="预测结果为空，无法保存")
+        # 核心逻辑：优先级读取 → 先读修正结果路径 → 读不到则读临时预测路径
+        save_model_path = None
 
-        save_info = _save_predict_json(
-            result=req.predict_result,
-            save_dir=PRODUCT_CONFIG["zd-double"]["dir"],
-            product_name=PRODUCT_CONFIG["zd-double"]["name"]
-        )
+        # 第一步：尝试读取修正后结果路径 (优先级高)
+        try:
+            save_model_path = path_store.read_path("zdst_cost_correction_path")
+        except KeyError:
+            # 无修正结果路径，不报错，继续尝试读临时路径
+            pass
 
-        return {
-            "code": 200,
-            "msg": "ZD双筒预测结果已成功保存为JSON",
-            "data": save_info
-        }
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 第二步：如果没读到修正路径，尝试读取临时预测路径
+        if not save_model_path:
+            try:
+                save_model_path = path_store.read_path("zdst_temp_predict_path")
+            except KeyError as e:
+                # 临时路径也读不到，抛出明确异常，提示必须先执行预测
+                raise HTTPException(status_code=400, detail=f"❌ 请先执行ZD双筒模型预测！未生成任何预测结果文件，{str(e)}")
+
+        # 关键校验：路径不能为空/None
+        if not save_model_path or len(str(save_model_path).strip()) == 0:
+            raise ValueError("读取到的预测结果路径为空，无法执行永久保存")
+
+        # 执行永久保存逻辑
+        save_result = save_result_permanent(save_model_path, PERM_PREDICT_PATH)
+
+        # 根据读取的路径类型，写入对应的永久路径key，保证路径存储的一致性
+        if "zddt_cost_correction_path" in locals():
+            path_store.write_path("zdst_fixed_predict_path", save_result)
+        else:
+            path_store.write_path("zdst_perm_predict_path", save_result)
+
+        return {"code": 200, "msg": "预测结果永久保存成功", "path": save_result}
+
+    except ValueError as e:
+        # 路径为空的业务异常
+        raise HTTPException(status_code=400, detail=f"❌ 永久保存失败：{str(e)}")
+    except OSError as e:
+        # 文件操作异常（权限不足/路径不存在/文件被占用）
+        raise HTTPException(status_code=500, detail=f"❌ 文件操作失败，保存预测结果失败：{str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"保存失败：{str(e)}")
+        # 兜底所有未捕获的异常
+        raise HTTPException(status_code=500, detail=f"❌ ZD双筒预测结果永久保存异常：{str(e)}")
 
-
-# ===================== 业务接口：XD =====================
-@router.post("/xd", summary="【XD】预测结果保存为JSON")
-async def save_xd_predict_result(req: SavePredictResultRequest):
+@router.post("/xd_save_predict_perm", summary="xd预测结果永久保存【无参】→自动读取预测或修正后的预测结果，无需传参")
+async def api_save_xd_predict_perm_auto():
     try:
-        if not req.predict_result:
-            raise HTTPException(status_code=400, detail="预测结果为空，无法保存")
+        # 核心逻辑：优先级读取 → 先读修正结果路径 → 读不到则读临时预测路径
+        save_model_path = None
 
-        save_info = _save_predict_json(
-            result=req.predict_result,
-            save_dir=PRODUCT_CONFIG["xd"]["dir"],
-            product_name=PRODUCT_CONFIG["xd"]["name"]
-        )
+        # 第一步：尝试读取修正后结果路径 (优先级高)
+        try:
+            save_model_path = path_store.read_path("xd_cost_correction_path")
+        except KeyError:
+            # 无修正结果路径，不报错，继续尝试读临时路径
+            pass
 
-        return {
-            "code": 200,
-            "msg": "XD预测结果已成功保存为JSON",
-            "data": save_info
-        }
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # 第二步：如果没读到修正路径，尝试读取临时预测路径
+        if not save_model_path:
+            try:
+                save_model_path = path_store.read_path("xd_temp_predict_path")
+            except KeyError as e:
+                # 临时路径也读不到，抛出明确异常，提示必须先执行预测
+                raise HTTPException(status_code=400, detail=f"❌ 请先执行ZD单筒模型预测！未生成任何预测结果文件，{str(e)}")
+
+        # 关键校验：路径不能为空/None
+        if not save_model_path or len(str(save_model_path).strip()) == 0:
+            raise ValueError("读取到的预测结果路径为空，无法执行永久保存")
+
+        # 执行永久保存逻辑
+        save_result = save_result_permanent(save_model_path, PERM_PREDICT_PATH)
+
+        # 根据读取的路径类型，写入对应的永久路径key，保证路径存储的一致性
+        if "xd_cost_correction_path" in locals():
+            path_store.write_path("xd_fixed_predict_path", save_result)
+        else:
+            path_store.write_path("xd_perm_predict_path", save_result)
+
+        return {"code": 200, "msg": "预测结果永久保存成功", "path": save_result}
+
+    except ValueError as e:
+        # 路径为空的业务异常
+        raise HTTPException(status_code=400, detail=f"❌ 永久保存失败：{str(e)}")
+    except OSError as e:
+        # 文件操作异常（权限不足/路径不存在/文件被占用）
+        raise HTTPException(status_code=500, detail=f"❌ 文件操作失败，保存预测结果失败：{str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"保存失败：{str(e)}")
+        # 兜底所有未捕获的异常
+        raise HTTPException(status_code=500, detail=f"❌ XD预测结果永久保存异常：{str(e)}")

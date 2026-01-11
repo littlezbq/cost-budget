@@ -1,0 +1,5 @@
+
+python:S1192Q"YDefine a constant instead of duplicating this literal "æ¨¡å‹æ°¸ä¹…ä¿å­˜æˆåŠŸ" 3 times.(ã›é³8†­í½º3J$d6dd0d59-4820-44a1-be77-93c4e1919264
+¿python:S101"vRename class "ZDSingleTrainRequest_no_path" to match the regular expression ^_?([A-Z_][a-zA-Z0-9]*|[a-z_][a-z0-9_]*)$.(×ò÷¤úÿÿÿÿ8“«†º3J$86047465-84c0-47d0-9dd3-c5d7809b3b61
+ºpython:S101W"vRename class "ZDDoubleTrainRequest_no_path" to match the regular expression ^_?([A-Z_][a-zA-Z0-9]*|[a-z_][a-z0-9_]*)$.(•·ßÏ8Á”º3J$05ef593b-6571-4507-82ed-48979fc9bbbd
+µpython:S101"pRename class "XDTrainRequest_no_path" to match the regular expression ^_?([A-Z_][a-zA-Z0-9]*|[a-z_][a-z0-9_]*)$.(’Ğ…è8³Ñ”º3J$258018f5-9ab9-4a1d-8d18-9e9874eaf0e1

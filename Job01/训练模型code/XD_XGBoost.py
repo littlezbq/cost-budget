@@ -6,12 +6,14 @@ from datetime import datetime
 import os
 import argparse
 import shutil
+from core.path_store import path_store
+from core.config import TEMP_OUTPUT_PATH,PERM_OUTPUT_PATH
 
 # ===================== 目录配置（核心修改：区分临时/永久） =====================
-# 临时目录：训练自动保存，可能堆积
-TEMP_OUTPUT_PATH = "output/xd_temp"
-# 永久目录：仅用户点击保存后才复制过来
-PERM_OUTPUT_PATH = "output/xd_perm"
+# # 临时目录：训练自动保存，可能堆积
+# TEMP_OUTPUT_PATH = "output/xd_temp"
+# # 永久目录：仅用户点击保存后才复制过来
+# PERM_OUTPUT_PATH = "output/xd_perm"
 # 确保目录存在
 os.makedirs(TEMP_OUTPUT_PATH, exist_ok=True)
 os.makedirs(PERM_OUTPUT_PATH, exist_ok=True)
@@ -40,8 +42,10 @@ def train_and_save_xd_model(file_path, k):
         k (str): 模型名称/目标变量
     """
     # 保存到临时目录
-    save_dir = os.path.join(TEMP_OUTPUT_PATH, 'xd_model')
+    save_dir = os.path.join(TEMP_OUTPUT_PATH)
     os.makedirs(save_dir, exist_ok=True)
+
+
 
     # 读取数据
     data = pd.read_excel(file_path, sheet_name='Sheet1')
@@ -79,6 +83,8 @@ def train_and_save_xd_model(file_path, k):
     model_path = os.path.join(save_dir, f"xd_{dict_col[k]}_{timestamp}.json")
     bst.save_model(model_path)
 
+    path_store.write_path("xd_temp_model_path", model_path)
+
     # 保存结果
     excel_path = save_results(
         y_true=y.values,
@@ -94,6 +100,10 @@ def train_and_save_xd_model(file_path, k):
     # 输出结果
     print(f"临时模型已保存: {model_path}")
     print(f"R2: {r2:.4f}, MAPE: {mape:.6f}, RMSE: {rmse:.6f}")
+
+    path_store.write_path("xd_temp_model_path", os.path.abspath(model_path))
+    path_store.write_path("xd_temp_excel_path", os.path.abspath(excel_path))
+
 
     return {
         "temp_model_path": os.path.abspath(model_path),  # 临时模型绝对路径
@@ -133,8 +143,12 @@ def save_xd_model_permanent(temp_model_path, temp_excel_path):
     # 复制Excel结果文件
     shutil.copy2(temp_excel_path, perm_excel_path)
 
-    print(f"✅ 模型已永久保存：{perm_model_path}")
-    print(f"✅ 结果Excel已永久保存：{perm_excel_path}")
+    print(f"✅ 模型已永久保存：{os.path.abspath(perm_model_path)}")
+    print(f"✅ 结果Excel已永久保存：{os.path.abspath(perm_excel_path)}")
+
+    path_store.write_path("xd_perm_model_path", os.path.abspath(perm_model_path))
+    path_store.write_path("xd_perm_excel_path", os.path.abspath(perm_excel_path))
+
 
     return {
         "perm_model_path": os.path.abspath(perm_model_path),

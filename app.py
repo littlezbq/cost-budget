@@ -2,8 +2,10 @@ from fastapi import FastAPI
 import uvicorn
 from starlette.middleware.cors import CORSMiddleware
 
-from routers import common
-from routers import model_train,model_predict,predict_save
+from routers import common,dfx_cal
+from routers import model_train,model_predict,predict_save,cost_correction,download_template
+
+
 
 app = FastAPI()
 
@@ -26,7 +28,9 @@ app.include_router(common.router)
 app.include_router(model_train.router)
 app.include_router(model_predict.router)
 app.include_router(predict_save.router)
-
+app.include_router(dfx_cal.router)
+app.include_router(cost_correction.router)
+app.include_router(download_template.router)
 @app.get("/hello")
 async def hello_world():
     return "hello world"

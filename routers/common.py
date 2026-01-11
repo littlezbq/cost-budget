@@ -10,6 +10,8 @@ from starlette import status
 
 from core.verify_files import verify_file, verify_data_xd,verify_data_zd
 from entites.data_model import EnterDataReq_ZD,EnterDataReq_XD
+from core.path_store import path_store
+
 
 router = APIRouter(prefix="/api/common", tags=['上传数据总入口'])
 
@@ -74,6 +76,10 @@ async def upload_zddt(file: UploadFile = Depends(verify_file)):
 
     # 返回Excel绝对路径
     excel_abs_path = os.path.abspath(store_file_path)
+
+    # 存储路径位置
+    path_store.write_path("upload_zddt_path", excel_abs_path)
+
     return {
         "code": 200,
         "msg": "Excel文件校验通过，保存成功",
@@ -122,6 +128,10 @@ async def upload_zdst(file: UploadFile = Depends(verify_file)):
 
     # 返回Excel绝对路径
     excel_abs_path = os.path.abspath(store_file_path)
+
+    #存储路径位置
+    path_store.write_path("upload_zdst_path", excel_abs_path)
+
     return {
         "code": 200,
         "msg": "Excel文件校验通过，保存成功",
@@ -130,7 +140,7 @@ async def upload_zdst(file: UploadFile = Depends(verify_file)):
 
 
 
-# 产品一&&产品二： ZD单筒、ZD双筒的单页面导入（共用）
+# 产品一&&产品二： ZD单筒、ZD单筒、ZD双筒的手动录入
 #==========================================ZD手动录入数据用作预测==========================================================
 # ========== 有无下拉 转换规则==========
 
@@ -191,7 +201,7 @@ def convert_to_train_format_zd(input_dict: dict) -> dict:
     return train_data
 
 
-@router.post("/enter_data_zd", status_code=status.HTTP_200_OK,summary="【产品一&产品二】ZD单双筒手动录入（公用接口）")
+@router.post("/enter_data_zddt", status_code=status.HTTP_200_OK,summary="【产品一】ZD单双筒手动录入")
 async def enter_data_zd(input_data: EnterDataReq_ZD = Depends(verify_data_zd)):
     """
     单条手动录入接口【最终版】
@@ -215,11 +225,54 @@ async def enter_data_zd(input_data: EnterDataReq_ZD = Depends(verify_data_zd)):
 
     # 5. 返回JSON文件绝对路径（与upload接口格式统一）
     json_abs_path = os.path.abspath(json_store_path)
+
+    # 存储路径位置
+    path_store.write_path("enter_data_zddt_path", json_abs_path)
+
     return {
         "code": 200,
         "msg": "手动录入数据已转换并保存为训练标准JSON文件",
         "data": json_abs_path
     }
+
+
+
+
+@router.post("/enter_data_zdst", status_code=status.HTTP_200_OK,summary="【产品二】ZD双筒手动录入")
+async def enter_data_zd(input_data: EnterDataReq_ZD = Depends(verify_data_zd)):
+    """
+    单条手动录入接口【最终版】
+    ✅ 接收页面下拉框聚合参数 → 自动转换为训练标准JSON格式
+    ✅ 保存JSON文件到本地 → 返回JSON文件绝对路径
+    ✅ 生成的JSON与训练用的格式完全一致
+    """
+    # 1. Pydantic模型转原始字典（自动解析alias别名，匹配训练key）
+    input_dict = input_data.model_dump(by_alias=True, exclude_none=False)
+
+    # 2. 核心转换：页面数据 → 训练标准数据
+    train_json_data = convert_to_train_format_zd(input_dict)
+
+    # 3. 生成唯一JSON文件名，拼接存储路径
+    json_file_id = uuid.uuid4()
+    json_store_path = os.path.join(STORE_PATH, f"{json_file_id}.json")
+
+    # 4. 异步保存JSON文件（格式化、支持中文、与训练格式一致）
+    async with aiofiles.open(json_store_path, 'w', encoding='utf-8') as f:
+        await f.write(json.dumps(train_json_data, ensure_ascii=False, indent=4))
+
+    # 5. 返回JSON文件绝对路径（与upload接口格式统一）
+    json_abs_path = os.path.abspath(json_store_path)
+
+    # 存储路径位置
+    path_store.write_path("enter_data_zdst_path", json_abs_path)
+
+    return {
+        "code": 200,
+        "msg": "手动录入数据已转换并保存为训练标准JSON文件",
+        "data": json_abs_path
+    }
+
+
 
 
 # 产品三： XD的批量导入和页面输入
@@ -268,6 +321,10 @@ async def upload_xd(file: UploadFile = Depends(verify_file)):
 
     # 返回Excel绝对路径
     excel_abs_path = os.path.abspath(store_file_path)
+
+    # 存储路径位置
+    path_store.write_path("upload_xd_path", excel_abs_path)
+
     return {
         "code": 200,
         "msg": "Excel文件校验通过，保存成功",
@@ -277,9 +334,6 @@ async def upload_xd(file: UploadFile = Depends(verify_file)):
 # 产品三： XD的单页面导入
 #==========================================XD手动录入数据用作预测==========================================================
 # ========== 有无下拉 转换规则==========
-
-
-
 
 
 def convert_to_train_format_xd(input_dict: dict) -> dict:
@@ -344,6 +398,10 @@ async def enter_data_xd(input_data: EnterDataReq_XD = Depends(verify_data_xd)):
 
     # 5. 返回JSON文件绝对路径（与upload接口格式统一）
     json_abs_path = os.path.abspath(json_store_path)
+
+    # 存储路径位置
+    path_store.write_path("enter_data_xd_path", json_abs_path)
+
     return {
         "code": 200,
         "msg": "手动录入数据已转换并保存为训练标准JSON文件",

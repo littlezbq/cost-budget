@@ -6,13 +6,10 @@ from datetime import datetime
 import os
 import argparse
 import shutil
-
-
+from core.path_store import path_store
+from core.config import TEMP_OUTPUT_PATH,PERM_OUTPUT_PATH
 # ===================== 目录配置（核心修改：区分临时/永久） =====================
-# 临时目录：训练自动保存，可能堆积
-TEMP_OUTPUT_PATH = "output/zd_temp"
-# 永久目录：仅用户点击保存后才复制过来
-PERM_OUTPUT_PATH = "output/zd_perm"
+
 # 确保目录存在
 os.makedirs(TEMP_OUTPUT_PATH, exist_ok=True)
 os.makedirs(PERM_OUTPUT_PATH, exist_ok=True)
@@ -45,7 +42,7 @@ def train_and_save_zd_model(file_path, k, zd_type):
         k (str): 目标变量（如'总成本'）
     """
     # 保存到临时目录
-    save_dir = os.path.join(TEMP_OUTPUT_PATH, 'zd_model')
+    save_dir = os.path.join(TEMP_OUTPUT_PATH)
     os.makedirs(save_dir, exist_ok=True)
 
 
@@ -86,6 +83,7 @@ def train_and_save_zd_model(file_path, k, zd_type):
     model_path = os.path.join(save_dir, f"zd{dict_tong[zd_type]}_{dict_col[k]}_{timestamp}.json")
     bst.save_model(model_path)
 
+
     # 保存结果
     excel_path = save_results(
         y_true=y.values,
@@ -103,6 +101,9 @@ def train_and_save_zd_model(file_path, k, zd_type):
     print(f"临时模型已保存: {model_path}")
     print(f"R2: {r2:.4f}, MAPE: {mape:.6f}, RMSE: {rmse:.6f}")
 
+    path_store.write_path(f"zd{dict_tong[zd_type]}_temp_model_path", os.path.abspath(model_path))
+    path_store.write_path(f"zd{dict_tong[zd_type]}_temp_excel_path", os.path.abspath(excel_path))
+
     # 新增返回值
     return {
         "temp_model_path": os.path.abspath(model_path),  # 临时模型绝对路径
@@ -116,7 +117,7 @@ def train_and_save_zd_model(file_path, k, zd_type):
 
 
 # ===================== 新增函数：保存模型（复制临时文件到永久目录） =====================
-def save_zd_model_permanent(temp_model_path, temp_excel_path):
+def save_zd_model_permanent(temp_model_path, temp_excel_path,zd_type):
     """
     将临时目录的模型/结果文件复制到永久目录
     :param temp_model_path: 临时模型文件路径（训练返回的temp_model_path）
@@ -132,7 +133,7 @@ def save_zd_model_permanent(temp_model_path, temp_excel_path):
     # 2. 构建永久目录路径（按筒型/目标变量分类，便于管理）
     # 从临时文件名中解析筒型/目标变量（比如zd_dt_total_202601071234.json → dt/total）
     model_filename = os.path.basename(temp_model_path)
-    perm_dir = os.path.join(PERM_OUTPUT_PATH, 'zd_model')
+    perm_dir = os.path.join(PERM_OUTPUT_PATH)
     os.makedirs(perm_dir, exist_ok=True)
 
     # 3. 复制文件到永久目录（保留原文件名）
@@ -144,41 +145,18 @@ def save_zd_model_permanent(temp_model_path, temp_excel_path):
     # 复制Excel结果文件
     shutil.copy2(temp_excel_path, perm_excel_path)
 
-    print(f"✅ 模型已永久保存：{perm_model_path}")
-    print(f"✅ 结果Excel已永久保存：{perm_excel_path}")
+    print(f"✅ 模型已永久保存：{os.path.abspath(perm_model_path)}")
+    print(f"✅ 结果Excel已永久保存：{os.path.abspath(perm_excel_path)}")
+
+    path_store.write_path(f"zd{dict_tong[zd_type]}_perm_model_path", os.path.abspath(perm_model_path))
+    path_store.write_path(f"zd{dict_tong[zd_type]}_perm_excel_path", os.path.abspath(perm_excel_path))
+
 
     return {
         "perm_model_path": os.path.abspath(perm_model_path),
         "perm_excel_path": os.path.abspath(perm_excel_path),
         "msg": "模型已从临时目录复制到永久目录"
     }
-
-
-# ===================== 新增函数：清理临时文件（解决堆积问题） =====================
-# def clean_temp_zd_models(hours=24):
-#     """
-#     清理超过N小时的临时模型文件
-#     :param hours: 超过多少小时的文件需要清理（默认24小时）
-#     """
-#     import time
-#     now = time.time()
-#     temp_dir = os.path.join(TEMP_OUTPUT_PATH, 'zd_model')
-#
-#     if not os.path.exists(temp_dir):
-#         print("临时目录不存在，无需清理")
-#         return
-#
-#     # 遍历临时目录下的所有文件
-#     for filename in os.listdir(temp_dir):
-#         file_path = os.path.join(temp_dir, filename)
-#         if os.path.isfile(file_path):
-#             # 获取文件创建时间
-#             create_time = os.path.getctime(file_path)
-#             # 超过指定小时则删除
-#             if now - create_time > hours * 3600:
-#                 os.remove(file_path)
-#                 print(f"🗑️ 清理过期临时文件：{file_path}")
-
 
 
 def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, zd_type, timestamp):
@@ -212,27 +190,3 @@ def save_results(y_true, y_pred, r2, mape, rmse, save_dir, k, zd_type, timestamp
     return excel_path
 
 
-# # ===================== 测试调用 =====================
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(description="ZD产品成本预测模型训练（临时+永久目录）")
-#     parser.add_argument('--file_path', type=str, default=r'E:\Work\algorithms\Job01\inputdata\ZD数据表.xlsx')
-#     parser.add_argument('--k', type=str, default='总成本')
-#     parser.add_argument('--type', type=str, default='单筒')
-#     parser.add_argument('--save_perm', type=bool, default=False, help='是否复制到永久目录')
-#     parser.add_argument('--clean_temp', type=bool, default=False, help='是否清理临时文件')
-#     args = parser.parse_args()
-#
-#     # 第一步：训练（自动保存到临时目录）
-#     train_result = train_and_save_zd_model(args.file_path, args.k, args.type)
-#     print("\n✅ 训练完成，临时文件信息：")
-#     print(f"临时模型：{train_result['temp_model_path']}")
-#     print(f"指标：R2={train_result['r2']}, MAPE={train_result['mape']}")
-#
-#     # 第二步：模拟用户点击保存（复制到永久目录）
-#     if args.save_perm:
-#         save_result = save_zd_model_permanent(train_result['temp_model_path'], train_result['temp_excel_path'])
-#         print(f"\n✅ 永久保存完成：{save_result['perm_model_path']}")
-#
-#     # 第三步：模拟清理临时文件
-#     if args.clean_temp:
-#         clean_temp_zd_models(hours=1)  # 清理超过1小时的临时文
