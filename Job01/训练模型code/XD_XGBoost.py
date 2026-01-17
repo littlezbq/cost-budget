@@ -131,7 +131,8 @@ def save_xd_model_permanent(temp_model_path, temp_excel_path):
     # 2. 构建永久目录路径（按筒型/目标变量分类，便于管理）
     # 从临时文件名中解析筒型/目标变量（比如zd_dt_total_202601071234.json → dt/total）
     model_filename = os.path.basename(temp_model_path)
-    perm_dir = os.path.join(PERM_OUTPUT_PATH, 'xd_model')
+    # 20260117 21：48修改  删除了'xd_model'子路径
+    perm_dir = os.path.join(PERM_OUTPUT_PATH)
     os.makedirs(perm_dir, exist_ok=True)
 
     # 3. 复制文件到永久目录（保留原文件名）

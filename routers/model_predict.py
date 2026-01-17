@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 import os
 
-from core.path_store import path_store
+from core.path_store import path_store,PATH_STORE_FILE
 from core.config import MODEL_TYPE_MAP, PERM_OUTPUT_PATH, PATH_KEY_MAP, ORI_DB_PATH, PRODUCT_DIR_MAP,TEMP_PREDICT_PATH
 from routers.predict_save import _save_predict_json
 import re
@@ -37,15 +37,28 @@ class SafeJSONEncoder(json.JSONEncoder):
 
 
 # ========== 按优先级读取数据路径：手动录入 > 批量上传 ==========
+# def get_priority_data_path(product_type: str) -> str:
+#     path_keys = PATH_KEY_MAP[product_type]
+#     try:
+#         enter_path = path_store.read_path(path_keys["enter"])
+#         return enter_path
+#     except (KeyError, FileNotFoundError):
+#         upload_path = path_store.read_path(path_keys["upload"])
+#         return upload_path
+
+# 20260117 22:30 修改了预测数据所用的逻辑，判断哪个在txt最下面用哪个
 def get_priority_data_path(product_type: str) -> str:
     path_keys = PATH_KEY_MAP[product_type]
-    try:
-        enter_path = path_store.read_path(path_keys["enter"])
-        return enter_path
-    except (KeyError, FileNotFoundError):
-        upload_path = path_store.read_path(path_keys["upload"])
-        return upload_path
+    with open(PATH_STORE_FILE, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
 
+    # 核心精髓：倒序读txt，读到第一个匹配的就返回 → 最后一行的永远先读到
+    for line in reversed(lines):
+        if path_keys["upload"] in line:
+            return path_store.read_path(path_keys["upload"])
+        elif path_keys["enter"] in line:
+            return path_store.read_path(path_keys["enter"])
+    raise KeyError(f"❌ {product_type} 未生成enter/upload路径！")
 
 # ========== 修复后的校验对比文件路径函数 (完美匹配你的调用传参) ==========
 def check_ori_db_path(ori_db_root_path: str, product_type: str) -> str:
@@ -363,6 +376,7 @@ async def xd_predict(request: XDPredictRequest):
             "total_cost": request.total_model_path
         }
         print(model_map)
+        print(data_path)
         predict_result = batch_run_xd_prediction(
             file_path=data_path,
             model_map=model_map,

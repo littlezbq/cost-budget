@@ -4,6 +4,8 @@ import pandas as pd
 import json
 import shap
 import math
+from core.config import PERM_OUTPUT_PATH
+
 
 from Job01.XD产品预测模型code.XD_code.XD_data_input import ModelInput, Input_parameternames
 from Job01.XD产品预测模型code.XD_code.XD_compare import SimilarProductFinder
@@ -28,18 +30,19 @@ def safe_float(value, default=0.0):
     except (ValueError, TypeError):
         return default
 
-
+# 20260117 22:31修改  读取xd模型路径进行修改
 # ===================== XD专属模型加载类 =====================
 class XDModelLoader:
     def __init__(self, model_map):
         self.model_map = model_map
-        current_file = Path(__file__).resolve()
-        project_root = current_file.parent
-        while not (project_root / "output").exists():
-            project_root = project_root.parent
-            if project_root == project_root.parent:
-                raise FileNotFoundError("❌ 未找到项目根目录下的output文件夹！")
-        self.model_root_dir = project_root / "output" / "xd_perm" / "xd_model"
+        # current_file = Path(__file__).resolve()
+        # project_root = current_file.parent
+        # while not (project_root / "output").exists():
+        #     project_root = project_root.parent
+        #     if project_root == project_root.parent:
+        #         raise FileNotFoundError("❌ 未找到项目根目录下的output文件夹！")
+        # self.model_root_dir = project_root / "output" / "xd_perm" / "xd_model"
+        self.model_root_dir = Path(PERM_OUTPUT_PATH).absolute()
         self.path_material = self.model_root_dir / self.model_map["material"]
         self.path_manlab = self.model_root_dir / self.model_map["manufacture_labour"]
         self.path_total = self.model_root_dir / self.model_map["total_cost"]
